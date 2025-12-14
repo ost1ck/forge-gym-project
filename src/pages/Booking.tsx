@@ -10,7 +10,7 @@ import Header from "@/components/Header";
 // Функція для перевірки доступності місць на сервері
 const checkAvailability = async ({ date, time }: { date: string, time: string }) => {
     // Використовуємо порт 5001
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5001"; 
+    const apiUrl = "";
     
     try {
         const response = await fetch(`${apiUrl}/check-availability`, {
@@ -161,7 +161,7 @@ const Booking = () => {
     setIsLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5001"; 
+      const apiUrl = ""; 
 
       const response = await fetch(`${apiUrl}/send-order`, {
         method: "POST",
