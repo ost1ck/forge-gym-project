@@ -3,10 +3,12 @@ const TelegramBot = require("node-telegram-bot-api");
 const nodemailer = require("nodemailer");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const path = require("path");
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use(express.static(__dirname));
 
 // ================= НАЛАШТУВАННЯ =================
 const telegramToken = "7934182685:AAGDYoLskY5NfAsIBGrTnxuirpKq0ZxYekc";
@@ -46,7 +48,7 @@ const transporter = nodemailer.createTransport({
 });
 
 app.get("/", (req, res) => {
-  res.send("Forge Gym Server is Running! 🔥");
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 // НОВИЙ МАРШРУТ: Перевірка доступності місць
