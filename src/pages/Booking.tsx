@@ -9,7 +9,7 @@ import Header from "@/components/Header";
 
 // Функція для перевірки доступності місць на сервері
 const checkAvailability = async ({ date, time }: { date: string, time: string }) => {
-    // Використовуємо порт 5001
+    // Використовуємо пустий рядок, щоб запит йшов на той самий домен
     const apiUrl = "";
     
     try {
@@ -355,7 +355,8 @@ const Booking = () => {
                 </div>
               </div>
               
-              {/* ВІДОБРАЖЕННЯ ДОСТУПНОСТІ ТА ПОМИЛОК ЧАСУ */}
+              {/* --- ТУТ Я ДОДАВ ВІДОБРАЖЕННЯ ВІЛЬНИХ МІСЦЬ --- */}
+              {renderAvailabilityMessage()} 
 
               {/* КОМЕНТАР */}
               <div>

@@ -20,10 +20,8 @@ const MAX_CAPACITY = 10;
 const PORT = process.env.PORT || 5001;
 // ===============================================
 
-// --- ВАЖЛИВА ЗМІНА ---
-// Виходимо на рівень вгору (..), щоб знайти папку dist
+// 1. Роздаємо статику з папки dist (результат білда)
 app.use(express.static(path.join(__dirname, '../dist')));
-// ---------------------
 
 // ПІДКЛЮЧЕННЯ ДО БД
 mongoose.connect(mongoUri)
@@ -72,37 +70,58 @@ app.post("/send-order", async (req, res) => {
   try {
     const { name, phone, email, goal, date, time, message } = req.body;
     
+    // 1. Перевірка місць
     const bookedCount = await Order.countDocuments({ date, time });
     if (bookedCount >= MAX_CAPACITY) {
         return res.status(409).json({ success: false, message: "На жаль, місця на цей час вже зайняті." });
     }
     
+    // 2. Збереження в базу
     const newOrder = new Order({ name, phone, email, goal, date, time, message });
     await newOrder.save();
     console.log(`💾 Збережено в MongoDB: ${name}`);
 
+    // 3. Telegram
     const telegramText = `🔥 *НОВА ЗАЯВКА FORGE GYM* 🔥\n👤 ${name}\n📞 ${phone}\n📅 ${date} | ⏰ ${time}`;
-    bot.sendMessage(adminChatId, telegramText, { parse_mode: "Markdown" }).catch(e => console.error("Telegram error:", e.message));
+    bot.sendMessage(adminChatId, telegramText, { parse_mode: "Markdown" })
+       .catch(e => console.error("❌ Telegram error:", e.message));
 
+    // 4. Email
     if (email && email.includes('@')) { 
       const mailOptions = {
         from: `"Forge Gym" <${myEmail}>`,
         to: email,
         subject: "Ваш запис на тренування | Forge Gym",
-        html: `<h1>Вітаємо, ${name}!</h1><p>Ви записані на ${date} о ${time}.</p>`
+        html: `
+          <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #009688;">Вітаємо, ${name}! 💪</h2>
+            <p>Ви успішно записані на тренування.</p>
+            <p><strong>📅 Дата:</strong> ${date}</p>
+            <p><strong>⏰ Час:</strong> ${time}</p>
+            <p>Чекаємо вас!</p>
+          </div>
+        `
       };
-      await transporter.sendMail(mailOptions);
+      
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log(`📧 Лист відправлено на: ${email}`);
+      } catch (emailError) {
+        console.error("❌ Помилка відправки Email (але замовлення збережено):", emailError.message);
+      }
     }
 
-    res.status(200).json({ success: true, message: "Saved & Sent" });
+    // 5. Відповідь клієнту
+    res.status(200).json({ success: true, message: "Заявку успішно створено!" });
 
   } catch (error) {
-    console.error("Помилка:", error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error("CRITICAL ERROR:", error);
+    res.status(500).json({ success: false, error: error.message, message: "Помилка сервера." });
   }
 });
 
-
+// --- ВАЖЛИВА ЧАСТИНА, ЯКОЇ НЕ БУЛО ---
+// Цей код запускає сайт і сервер
 app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
