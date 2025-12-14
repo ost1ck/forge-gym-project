@@ -40,20 +40,18 @@ const Order = mongoose.model("Order", OrderSchema);
 
 const bot = new TelegramBot(telegramToken, { polling: true }); 
 
-// Налаштування пошти
+// --- ФІНАЛЬНА СПРОБА ПОШТИ ---
+// Використовуємо вбудований сервіс Gmail, це іноді допомагає обійти блокування портів
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, 
+  service: "gmail", 
   auth: { user: myEmail, pass: myPassword },
 });
 
-// ПЕРЕВІРКА ПОШТИ ПРИ ЗАПУСКУ
 transporter.verify(function (error, success) {
   if (error) {
-    console.log("❌ Помилка підключення до пошти:", error);
+    console.log("⚠️ Пошта може не працювати (Render блокує порти):", error.message);
   } else {
-    console.log("✅ Сервер готовий відправляти пошту (SMTP connect success)");
+    console.log("✅ З'єднання з поштою успішне!");
   }
 });
 
@@ -63,33 +61,24 @@ app.post("/check-availability", async (req, res) => {
     const { date, time } = req.body;
     const bookedCount = await Order.countDocuments({ date, time });
     const availableSlots = MAX_CAPACITY - bookedCount;
-    
-    res.status(200).json({ 
-      success: true, 
-      maxCapacity: MAX_CAPACITY,
-      bookedCount: bookedCount,
-      availableSlots: availableSlots,
-      isAvailable: availableSlots > 0 
-    });
+    res.status(200).json({ success: true, bookedCount, availableSlots, isAvailable: availableSlots > 0 });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 app.post("/send-order", async (req, res) => {
-  console.log("📨 Отримано новий запит:", req.body); // ЛОГ 1
+  console.log("📨 Новий запит:", req.body);
 
   try {
     const { name, phone, email, goal, date, time, message } = req.body;
     
-    // ВАЛІДАЦІЯ ДАТИ НА СЕРВЕРІ
+    // Валідація дати
     const selectedDate = new Date(date);
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Обнуляємо час для коректного порівняння дат
+    today.setHours(0, 0, 0, 0);
     
-    // Якщо дата запису менша за сьогоднішню (не враховуючи час)
     if (selectedDate < today) {
-        console.log("❌ Спроба запису в минуле");
         return res.status(400).json({ success: false, message: "Не можна записатися на минулу дату." });
     }
 
@@ -100,13 +89,13 @@ app.post("/send-order", async (req, res) => {
     
     const newOrder = new Order({ name, phone, email, goal, date, time, message });
     await newOrder.save();
-    console.log(`💾 Збережено в MongoDB: ${name}`); // ЛОГ 2
+    console.log(`💾 Збережено в MongoDB: ${name}`);
 
-    // ВІДПОВІДЬ КЛІЄНТУ
+    // МИТТЄВА ВІДПОВІДЬ
     res.status(200).json({ success: true, message: "Заявку створено!" });
 
     // ФОНОВІ ЗАВДАННЯ
-    const telegramText = `🔥 *НОВА ЗАЯВКА FORGE GYM* 🔥\n👤 ${name}\n📞 ${phone}\n📅 ${date} | ⏰ ${time}`;
+    const telegramText = `🔥 *НОВА ЗАЯВКА* 🔥\n👤 ${name}\n📞 ${phone}\n📅 ${date} | ⏰ ${time}`;
     bot.sendMessage(adminChatId, telegramText, { parse_mode: "Markdown" })
        .catch(e => console.error("❌ Telegram error:", e.message));
 
@@ -114,21 +103,19 @@ app.post("/send-order", async (req, res) => {
       const mailOptions = {
         from: `"Forge Gym" <${myEmail}>`,
         to: email,
-        subject: "Ваш запис на тренування | Forge Gym",
+        subject: "Ваш запис | Forge Gym",
         html: `<h1>Вітаємо, ${name}!</h1><p>Ви записані на ${date} о ${time}.</p>`
       };
       
       transporter.sendMail(mailOptions, (err, info) => {
-        if (err) console.error("❌ Помилка Email:", err.message);
-        else console.log("📧 Email відправлено успішно");
+        if (err) console.error("❌ Email error (блокування хостингу):", err.message);
+        else console.log("📧 Email sent!");
       });
     }
 
   } catch (error) {
     console.error("CRITICAL ERROR:", error);
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, error: error.message });
-    }
+    if (!res.headersSent) res.status(500).json({ success: false, error: error.message });
   }
 });
 
