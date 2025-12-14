@@ -20,10 +20,10 @@ const MAX_CAPACITY = 10;
 const PORT = process.env.PORT || 5001;
 // ===============================================
 
-// --- ВАЖЛИВА ЗМІНА ТУТ ---
-// 1. Роздаємо статику з папки dist (результат білда)
-app.use(express.static(path.join(__dirname, 'dist')));
-// -------------------------
+// --- ВАЖЛИВА ЗМІНА ---
+// Виходимо на рівень вгору (..), щоб знайти папку dist
+app.use(express.static(path.join(__dirname, '../dist')));
+// ---------------------
 
 // ПІДКЛЮЧЕННЯ ДО БД
 mongoose.connect(mongoUri)
@@ -85,7 +85,6 @@ app.post("/send-order", async (req, res) => {
     bot.sendMessage(adminChatId, telegramText, { parse_mode: "Markdown" }).catch(e => console.error("Telegram error:", e.message));
 
     if (email && email.includes('@')) { 
-      // Скоротив код для зручності читання, логіка та сама
       const mailOptions = {
         from: `"Forge Gym" <${myEmail}>`,
         to: email,
@@ -103,13 +102,12 @@ app.post("/send-order", async (req, res) => {
   }
 });
 
-// --- ВАЖЛИВА ЗМІНА ТУТ ---
-// Цей код має бути В КІНЦІ, ПІСЛЯ всіх app.post(...)
-// Він каже: "Якщо запит не підійшов ні під один app.post вище, віддай React сайт"
+// --- ВАЖЛИВА ЗМІНА ---
+// Теж виходимо на рівень вгору (..) до dist/index.html
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
-// -------------------------
+// ---------------------
 
 app.listen(PORT, () => {
   console.log(`✅ Сервер запущено на порті ${PORT}`);
