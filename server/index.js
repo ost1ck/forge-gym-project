@@ -102,12 +102,10 @@ app.post("/send-order", async (req, res) => {
   }
 });
 
-// --- ВАЖЛИВА ЗМІНА ---
-// Теж виходимо на рівень вгору (..) до dist/index.html
-app.get('*', (req, res) => {
+
+app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
-// ---------------------
 
 app.listen(PORT, () => {
   console.log(`✅ Сервер запущено на порті ${PORT}`);
