@@ -43,8 +43,8 @@ const bot = new TelegramBot(telegramToken, { polling: true });
 // Налаштування пошти
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 465,
-  secure: true, 
+  port: 587,
+  secure: false, 
   auth: { user: myEmail, pass: myPassword },
 });
 
