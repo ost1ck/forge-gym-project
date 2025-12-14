@@ -7,11 +7,9 @@ import { useToast } from "@/hooks/use-toast";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 
-// Функція перевірки місць
 const checkAvailability = async ({ date, time }: { date: string, time: string }) => {
-    const apiUrl = ""; // Пустий рядок для відносного шляху
     try {
-        const response = await fetch(`${apiUrl}/check-availability`, {
+        const response = await fetch(`/check-availability`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ date, time }),
@@ -39,40 +37,37 @@ const Booking = () => {
 
   const LIMITS = { NAME: 30, PHONE: 12, EMAIL: 50, MESSAGE: 500 };
 
+  // Отримуємо правильну локальну дату у форматі YYYY-MM-DD
+  const getLocalDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const now = useMemo(() => new Date(), []);
-  const todayDateString = now.toISOString().split("T")[0]; 
+  const todayDateString = getLocalDateString(now); 
   
   const maxDateObj = new Date();
   maxDateObj.setMonth(maxDateObj.getMonth() + 3);
-  const maxDate = maxDateObj.toISOString().split("T")[0];
+  const maxDate = getLocalDateString(maxDateObj);
 
   const [formData, setFormData] = useState({
     name: "", phone: "", email: "", goal: "general", date: todayDateString, time: "", message: "" 
   });
 
-  // --- ЛОГІКА БЛОКУВАННЯ ЧАСУ ---
   const isTimeOptionDisabled = (timeOption: string, selectedDate: string): boolean => {
-    // Якщо дата з минулого - блокуємо все
+    // Якщо дата менша за сьогодні - блокуємо
     if (selectedDate < todayDateString) return true;
-
-    // Якщо дата з майбутнього - не блокуємо нічого
+    // Якщо дата в майбутньому - дозволяємо все
     if (selectedDate > todayDateString) return false;
 
-    // Якщо дата СЬОГОДНІ, перевіряємо години
+    // Якщо це сьогодні, перевіряємо години
     const currentHour = new Date().getHours();
     
-    if (timeOption === "morning") { 
-        // Ранок закінчується о 12:00. Якщо зараз 12 або більше - блокуємо.
-        return currentHour >= 12;
-    } 
-    if (timeOption === "day") { 
-        // День закінчується о 17:00.
-        return currentHour >= 17;
-    } 
-    if (timeOption === "evening") { 
-        // Вечір закінчується о 22:00.
-        return currentHour >= 22; 
-    }
+    if (timeOption === "morning") return currentHour >= 12;
+    if (timeOption === "day") return currentHour >= 17;
+    if (timeOption === "evening") return currentHour >= 22;
     
     return false;
   };
@@ -119,13 +114,11 @@ const Booking = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Перевірки
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(formData.email)) { toast({ variant: "destructive", title: "Помилка", description: "Некоректна пошта." }); return; }
     if (formData.phone.length < 10) { toast({ variant: "destructive", title: "Помилка", description: "Короткий номер." }); return; }
     if (!formData.date || !formData.time) { toast({ variant: "destructive", title: "Помилка", description: "Оберіть час." }); return; }
     
-    // Перевірка часу перед відправкою
     if (isPastDate(formData.date) || isTimeOptionDisabled(formData.time, formData.date)) {
         toast({ variant: "destructive", title: "Час минув", description: "Цей час вже недоступний." });
         return;
@@ -138,8 +131,8 @@ const Booking = () => {
     setIsLoading(true);
 
     try {
-      const apiUrl = ""; 
-      const response = await fetch(`${apiUrl}/send-order`, {
+      // Тут ми прибрали import.meta.env, щоб точно використовувався відносний шлях
+      const response = await fetch(`/send-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),

@@ -20,10 +20,8 @@ const MAX_CAPACITY = 10;
 const PORT = process.env.PORT || 5001;
 // ===============================================
 
-// Роздаємо статику
 app.use(express.static(path.join(__dirname, '../dist')));
 
-// ПІДКЛЮЧЕННЯ ДО БД
 mongoose.connect(mongoUri)
   .then(() => console.log("✅ База даних (MongoDB) підключена!"))
   .catch((err) => console.error("❌ Помилка підключення до БД:", err));
@@ -42,12 +40,21 @@ const Order = mongoose.model("Order", OrderSchema);
 
 const bot = new TelegramBot(telegramToken, { polling: true }); 
 
-// НАЛАШТУВАННЯ ПОШТИ (ПОРТ 465 - ВАЖЛИВО ДЛЯ RENDER)
+// Налаштування пошти
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 465,
   secure: true, 
   auth: { user: myEmail, pass: myPassword },
+});
+
+// ПЕРЕВІРКА ПОШТИ ПРИ ЗАПУСКУ
+transporter.verify(function (error, success) {
+  if (error) {
+    console.log("❌ Помилка підключення до пошти:", error);
+  } else {
+    console.log("✅ Сервер готовий відправляти пошту (SMTP connect success)");
+  }
 });
 
 // API ROUTES
@@ -65,69 +72,66 @@ app.post("/check-availability", async (req, res) => {
       isAvailable: availableSlots > 0 
     });
   } catch (error) {
-    console.error("❌ Помилка перевірки доступності:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 app.post("/send-order", async (req, res) => {
+  console.log("📨 Отримано новий запит:", req.body); // ЛОГ 1
+
   try {
     const { name, phone, email, goal, date, time, message } = req.body;
     
-    // 1. Перевірка місць
+    // ВАЛІДАЦІЯ ДАТИ НА СЕРВЕРІ
+    const selectedDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Обнуляємо час для коректного порівняння дат
+    
+    // Якщо дата запису менша за сьогоднішню (не враховуючи час)
+    if (selectedDate < today) {
+        console.log("❌ Спроба запису в минуле");
+        return res.status(400).json({ success: false, message: "Не можна записатися на минулу дату." });
+    }
+
     const bookedCount = await Order.countDocuments({ date, time });
     if (bookedCount >= MAX_CAPACITY) {
-        return res.status(409).json({ success: false, message: "На жаль, місця на цей час вже зайняті." });
+        return res.status(409).json({ success: false, message: "Місця зайняті." });
     }
     
-    // 2. Збереження в базу
     const newOrder = new Order({ name, phone, email, goal, date, time, message });
     await newOrder.save();
-    console.log(`💾 Збережено в MongoDB: ${name}`);
+    console.log(`💾 Збережено в MongoDB: ${name}`); // ЛОГ 2
 
-    // 3. ВІДПОВІДЬ КЛІЄНТУ (МИТТЄВО!)
-    // Ми кажемо "ОК" ще ДО відправки пошти, щоб клієнт не чекав
-    res.status(200).json({ success: true, message: "Заявку успішно створено!" });
+    // ВІДПОВІДЬ КЛІЄНТУ
+    res.status(200).json({ success: true, message: "Заявку створено!" });
 
-    // --- ФОНОВІ ЗАВДАННЯ ---
-
-    // 4. Telegram
+    // ФОНОВІ ЗАВДАННЯ
     const telegramText = `🔥 *НОВА ЗАЯВКА FORGE GYM* 🔥\n👤 ${name}\n📞 ${phone}\n📅 ${date} | ⏰ ${time}`;
     bot.sendMessage(adminChatId, telegramText, { parse_mode: "Markdown" })
        .catch(e => console.error("❌ Telegram error:", e.message));
 
-    // 5. Email (У фоні)
     if (email && email.includes('@')) { 
       const mailOptions = {
         from: `"Forge Gym" <${myEmail}>`,
         to: email,
         subject: "Ваш запис на тренування | Forge Gym",
-        html: `
-          <div style="font-family: Arial, sans-serif; padding: 20px;">
-            <h2 style="color: #009688;">Вітаємо, ${name}! 💪</h2>
-            <p>Ви успішно записані на тренування.</p>
-            <p><strong>📅 Дата:</strong> ${date}</p>
-            <p><strong>⏰ Час:</strong> ${time}</p>
-            <p>Чекаємо вас!</p>
-          </div>
-        `
+        html: `<h1>Вітаємо, ${name}!</h1><p>Ви записані на ${date} о ${time}.</p>`
       };
       
       transporter.sendMail(mailOptions, (err, info) => {
         if (err) console.error("❌ Помилка Email:", err.message);
-        else console.log("📧 Email відправлено");
+        else console.log("📧 Email відправлено успішно");
       });
     }
 
   } catch (error) {
     console.error("CRITICAL ERROR:", error);
     if (!res.headersSent) {
-      res.status(500).json({ success: false, error: error.message, message: "Помилка сервера." });
+      res.status(500).json({ success: false, error: error.message });
     }
   }
 });
 
-// Запуск сайту
 app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
