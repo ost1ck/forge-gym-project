@@ -20,7 +20,7 @@ const MAX_CAPACITY = 10;
 const PORT = process.env.PORT || 5001;
 // ===============================================
 
-// 1. Роздаємо статику з папки dist (результат білда)
+// Роздаємо статику
 app.use(express.static(path.join(__dirname, '../dist')));
 
 // ПІДКЛЮЧЕННЯ ДО БД
@@ -41,8 +41,12 @@ const OrderSchema = new mongoose.Schema({
 const Order = mongoose.model("Order", OrderSchema);
 
 const bot = new TelegramBot(telegramToken, { polling: true }); 
+
+// НАЛАШТУВАННЯ ПОШТИ (ПОРТ 465 - ВАЖЛИВО ДЛЯ RENDER)
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, 
   auth: { user: myEmail, pass: myPassword },
 });
 
@@ -81,12 +85,18 @@ app.post("/send-order", async (req, res) => {
     await newOrder.save();
     console.log(`💾 Збережено в MongoDB: ${name}`);
 
-    // 3. Telegram
+    // 3. ВІДПОВІДЬ КЛІЄНТУ (МИТТЄВО!)
+    // Ми кажемо "ОК" ще ДО відправки пошти, щоб клієнт не чекав
+    res.status(200).json({ success: true, message: "Заявку успішно створено!" });
+
+    // --- ФОНОВІ ЗАВДАННЯ ---
+
+    // 4. Telegram
     const telegramText = `🔥 *НОВА ЗАЯВКА FORGE GYM* 🔥\n👤 ${name}\n📞 ${phone}\n📅 ${date} | ⏰ ${time}`;
     bot.sendMessage(adminChatId, telegramText, { parse_mode: "Markdown" })
        .catch(e => console.error("❌ Telegram error:", e.message));
 
-    // 4. Email
+    // 5. Email (У фоні)
     if (email && email.includes('@')) { 
       const mailOptions = {
         from: `"Forge Gym" <${myEmail}>`,
@@ -103,25 +113,21 @@ app.post("/send-order", async (req, res) => {
         `
       };
       
-      try {
-        await transporter.sendMail(mailOptions);
-        console.log(`📧 Лист відправлено на: ${email}`);
-      } catch (emailError) {
-        console.error("❌ Помилка відправки Email (але замовлення збережено):", emailError.message);
-      }
+      transporter.sendMail(mailOptions, (err, info) => {
+        if (err) console.error("❌ Помилка Email:", err.message);
+        else console.log("📧 Email відправлено");
+      });
     }
-
-    // 5. Відповідь клієнту
-    res.status(200).json({ success: true, message: "Заявку успішно створено!" });
 
   } catch (error) {
     console.error("CRITICAL ERROR:", error);
-    res.status(500).json({ success: false, error: error.message, message: "Помилка сервера." });
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: error.message, message: "Помилка сервера." });
+    }
   }
 });
 
-// --- ВАЖЛИВА ЧАСТИНА, ЯКОЇ НЕ БУЛО ---
-// Цей код запускає сайт і сервер
+// Запуск сайту
 app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
