@@ -17,7 +17,7 @@ const mongoUri = "mongodb+srv://kotulaostap2003_db_user:XRUbXh90lLouFhQ2@forgegy
 
 // Максимальна кількість людей на одне тренування
 const MAX_CAPACITY = 10; 
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 // ===============================================
 
 // 1. ПІДКЛЮЧЕННЯ ДО БД
